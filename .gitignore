@@ -1,0 +1,4 @@
+.vscode
+pillow/data
+__pycache__
+devices.db
