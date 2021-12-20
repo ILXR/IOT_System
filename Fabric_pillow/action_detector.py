@@ -15,8 +15,17 @@ import numpy as np
 import util
 
 # 检测按压参数
-ACTION_START_THRESHOLD = 1.5  # 按压时电容相较于稳定状态的倍率
-ACTION_END_THRESHOLD = 2/3  # 按压动作结束时，电容相较于本次动作电容最大值的比率（下降沿时触发动作）
+'''
+maxvalue                   ---------
+                           |       |                                                                              ----------
+action start             ->|       |   ->   cur_value = baseline * ACTION_START_THRESHOLD                         |        |
+                           |       |                                                                              |        |
+action end                 |     ->|   ->   cur_value = baseline + (maxvalue - baseline) * ACTION_END_THRESHOLD   |        |
+                           |       |                                                                              |        |
+baseline     --------------         -------------------------- >= ACTION_INTERVAL --------------------------------          ------
+'''
+ACTION_START_THRESHOLD = 1.4  # 检测到按压时电容相较于稳定状态的倍率
+ACTION_END_THRESHOLD = 1/3  # 按压动作结束时，电容变化值相较于本次动作电容最大变化值的比率（下降沿时触发动作）
 STABLE_THRESHOLD = 5       # 动态调整基准值的最大极差
 ACTION_INTERVAL = 20       # 每两次动作之间的最小间隔
 CACHE_SIZE = 50            # 用于获取基准值的数据量
@@ -51,7 +60,7 @@ class ChannelDetector():
         if self.in_action:
             # 记录动作最大值
             self.max_action_val = max(self.max_action_val, val)
-            if(val < self.max_action_val * ACTION_END_THRESHOLD):
+            if(val <  self.baseline + (self.max_action_val - self.baseline) * ACTION_END_THRESHOLD):
                 # 检测下降沿，降低为峰值的一定比率时，Action结束
                 self.in_action = False
                 self.max_action_val = 0
