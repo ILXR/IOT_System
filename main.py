@@ -1,3 +1,4 @@
+from machine import Timer
 from machine import Pin
 import ubinascii
 import network
@@ -20,95 +21,55 @@ GPIO_PIN = None
 GPIO_PIN_NUMBER = 0
 LED_PIN = None
 LED_PIN_NUMBER = 2
-# database
-DATABASE_NAME = 'mydb'
-DATABASE_FILE = None
-DATABASE = None
-SWITCH_KEY = b'switch_key'
-SWITCH_ON = b'on'
-SWITCH_OFF = b'off'
+# Timer
+ALARM_TIME = 5*1000
+Alarm_Timer = Timer(0)
+
+################################################### GPIO ##########################################################
+
+
+def alarm_gpio_init():
+    # 初始化GPIO
+    global GPIO_PIN, GPIO_PIN_NUMBER, LED_PIN, LED_PIN_NUMBER
+    print("alarm init...")
+    GPIO_PIN = Pin(GPIO_PIN_NUMBER, Pin.OUT, value=1)
+    LED_PIN = Pin(LED_PIN_NUMBER, Pin.OUT, value=0)
+
+
+def alarm_init_default():
+    global GPIO_PIN, GPIO_PIN_NUMBER, LED_PIN, LED_PIN_NUMBER
+    print("set alarm status default close")
+    GPIO_PIN.on()
+    LED_PIN.off()
+
+
+def alarm_open():
+    global GPIO_PIN, LED_PIN
+    print("alarm open")
+    GPIO_PIN.off()
+    LED_PIN.on()
+
+
+def alarm_close():
+    global GPIO_PIN, LED_PIN
+    print("alarm close")
+    GPIO_PIN.on()
+    LED_PIN.off()
+
+
+def alarm_ctrl():
+    global Alarm_Timer
+    Alarm_Timer.deinit()
+    alarm_open()
+    Alarm_Timer.init(period=ALARM_TIME, mode=Timer.ONE_SHOT,
+                     callback=lambda t: alarm_close())
+
+
+################################################### Util ##########################################################
 
 
 def exit():
-    global DATABASE, DATABASE_FILE
-    if DATABASE:
-        DATABASE.close()
-    if DATABASE_FILE:
-        DATABASE_FILE.close()
     sys.exit(0)
-
-
-def get_switch_status():
-    global DATABASE, SWITCH_KEY
-    return DATABASE[SWITCH_KEY]
-
-
-def database_init():
-    global DATABASE, DATABASE_NAME
-    print("database init...")
-    try:
-        DATABASE_FILE = open(DATABASE_NAME, 'r+b')
-    except OSError:
-        DATABASE_FILE = open(DATABASE_NAME, "w+b")
-    DATABASE = btree.open(DATABASE_FILE)
-    if(SWITCH_KEY not in DATABASE):
-        DATABASE[SWITCH_KEY] = SWITCH_ON
-        DATABASE.flush()
-    print("database connected\n")
-
-
-def switch_gpio_init():
-    # 初始化GPIO
-    global GPIO_PIN, GPIO_PIN_NUMBER, LED_PIN, LED_PIN_NUMBER
-    print("switch init...")
-    GPIO_PIN = Pin(GPIO_PIN_NUMBER, Pin.OUT, value=0)
-    LED_PIN = Pin(LED_PIN_NUMBER, Pin.OUT, value=1)
-    print("switch default on\n")
-
-
-def switch_init_default():
-    global GPIO_PIN, GPIO_PIN_NUMBER, LED_PIN, LED_PIN_NUMBER
-    print("set switch status default on")
-    GPIO_PIN.off()
-    LED_PIN.on()
-
-
-def switch_init_memory():
-    global DATABASE, GPIO_PIN, LED_PIN
-    print("set switch status according to the last setting")
-    if get_switch_status() == SWITCH_ON:
-        switch_open()
-    else:
-        switch_close()
-
-
-def switch_open():
-    global DATABASE, GPIO_PIN, LED_PIN
-    GPIO_PIN.off()
-    LED_PIN.on()
-    DATABASE[SWITCH_KEY] = SWITCH_ON
-    print("switch open")
-    DATABASE.flush()
-
-
-def switch_close():
-    global DATABASE, GPIO_PIN, LED_PIN
-    GPIO_PIN.on()
-    LED_PIN.off()
-    DATABASE[SWITCH_KEY] = SWITCH_OFF
-    print("switch close")
-    DATABASE.flush()
-
-
-def switch_ctrl():
-    # 切换继电器状态
-    global DATABASE, GPIO_PIN, LED_PIN
-    if get_switch_status() == SWITCH_ON:
-        # open to close
-        switch_close()
-    else:
-        # close to open
-        switch_open()
 
 
 def json2bytes(obj):
@@ -131,6 +92,8 @@ def bytes2json(obj):
         print(e, "\nbytes to json failed:", obj)
     finally:
         return res
+
+################################################### Net ##########################################################
 
 
 def wifi_connect():
@@ -163,34 +126,39 @@ def socket_connect():
     # send device info
     device_info = {
         'mac': MAC_ADDRESS,
-        'name': 'ESP32'
+        'name': 'ESP32',
+        'type': 'Alarm'
     }
     s.send(json.dumps(device_info))
-    # 一切初始化成功，这时再根据数据库来修改开关状态
-    switch_init_memory()
     # recv action data
     print("\nlistening to socket...")
     while True:
         try:
-            data = s.recv(1024)
+            length = s.recv(1)[0]
+            if(length == 0):
+                break
+            data = s.recv(length)
             if data:
                 data = bytes2json(data)
                 if data is not None:
                     print("get data: ", data)
                     if 'action' in data.keys():
                         print("get action, my id: ", data['action'])
-                        switch_ctrl()
+                        # TODO 实现警报控制
+                        alarm_ctrl()
             else:
                 time.sleep(0.01)
         except KeyboardInterrupt:
             s.close()
             exit()
 
+################################################### Main ##########################################################
+
 
 def start_serve():
     while True:
         try:
-            switch_init_default()
+            alarm_init_default()
             wifi_connect()
             time.sleep(0.5)
             socket_connect()
@@ -205,6 +173,5 @@ def start_serve():
 
 def main():
     print("---------- start main -----------")
-    database_init()
-    switch_gpio_init()
+    alarm_gpio_init()
     start_serve()
