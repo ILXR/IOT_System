@@ -32,7 +32,9 @@ def bytes2json(obj):
 
 def send(socket, json_obj):
     try:
-        socket.send(json2bytes(json_obj))
+        to_send = json2bytes(json_obj)
+        socket.send(bytes([len(to_send)]))
+        socket.send(to_send)
         return True
     except Exception as e:
         print(e)
