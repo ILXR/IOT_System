@@ -1,33 +1,10 @@
+from threading import Thread
+from database import *
 from util import *
 import util
 import time
 import socketserver
 import threading
-import json
-from threading import Thread
-from database import *
-
-
-def json2bytes(obj):
-    res = None
-    try:
-        res = str.encode(
-            json.dumps(obj), encoding='GBK')
-    except Exception as e:
-        print(e, "\njson to bytes failed:", obj)
-    finally:
-        return res
-
-
-def bytes2json(obj):
-    res = None
-    try:
-        res = json.loads(bytes.decode(
-            obj, encoding='GBK'))
-    except Exception as e:
-        print(e, "\nbytes to json failed:", obj)
-    finally:
-        return res
 
 
 def send(socket, json_obj):
@@ -60,9 +37,10 @@ class MyHandler(socketserver.BaseRequestHandler):
                     info = self.database.get_device_by_mac(
                         mac) or self.database.add_device(mac, name)
                     if info is not None:
-                        print("设备信息：", info)
-                        util.id2mac[info[3]] = mac
-                        util.mac2socket[mac] = self.request
+                        self.data['id'] = info[3]
+                        print("设备信息：", self.data, "\n")
+                        self.data['socket'] = self.request
+                        util.device_info[info[3]] = self.data
                 else:
                     print("数据格式错误")
         except Exception as e:
