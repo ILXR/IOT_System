@@ -10,7 +10,7 @@ app = Flask(__name__)
 # Alarm
 ALARM_INTERVAL = 2000  # 连续按压动作之间的最大间隔
 ALARM_TIME = 3  # 连续按压动作次数
-SWITCH_INTERVAL = 2000
+SWITCH_INTERVAL = 1000
 SWITCH_TIME = 2
 
 # NetWork
@@ -90,6 +90,8 @@ def process_order(action, id, time):
         }
         print(util.pre_action[action])
         return code
+    else:
+        return ERROR_OFFLINE
 
 
 def send_action(socket, action):
