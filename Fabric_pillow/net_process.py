@@ -1,10 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
-from util import *
-import re
-import subprocess
 from time import sleep
+from util import *
+import subprocess
 import requests
+import time
 import util
+import re
 
 # Http parm
 HOST_URL = '192.168.137.1'
@@ -64,7 +65,7 @@ def http_send_action(url=SEND_ACTION_INTERFACE, action=None):
     if action is None:
         print("Http Error: Action can't be None")
         return
-    param = {'id': DEVICE_ID, 'action': action}
+    param = {'id': DEVICE_ID, 'action': action, 'time': time.time()}
     try:
         response = requests.get(url=url, params=param, timeout=(5, 5))
         response.raise_for_status()

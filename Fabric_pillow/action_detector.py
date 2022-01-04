@@ -9,9 +9,9 @@
 '''
 
 # here put the import lib
-from util import *
 from threading import Thread
 import numpy as np
+from util import *
 import util
 
 # 检测按压参数
@@ -24,12 +24,12 @@ action end                 |     ->|   ->   cur_value = baseline + (maxvalue - b
                            |       |                                                                              |        |
 baseline     --------------         -------------------------- >= ACTION_INTERVAL --------------------------------          ------
 '''
-ACTION_START_THRESHOLD = 1.4  # 检测到按压时电容相较于稳定状态的倍率
-ACTION_END_THRESHOLD = 1/3  # 按压动作结束时，电容变化值相较于本次动作电容最大变化值的比率（下降沿时触发动作）
-STABLE_THRESHOLD = 5       # 动态调整基准值的最大极差
-ACTION_INTERVAL = 20       # 每两次动作之间的最小间隔
-CACHE_SIZE = 50            # 用于获取基准值的数据量
-CHANNEL_IN_ACTION = None   # 当前是否已经有其他通道进入动作
+ACTION_START_DVAL = 10        # 和稳定值相差一定值时，按压动作开始
+ACTION_END_THRESHOLD = 1/2    # 当电容相较于触发值的变化值降低为一定阈值时，按压动作结束
+STABLE_THRESHOLD = 5          # 动态调整基准值（baseline）的最大极差
+ACTION_INTERVAL = 5           # 每两次动作之间的最小间隔
+CACHE_SIZE = 50               # 用于获取基准值的数据量
+CHANNEL_IN_ACTION = None      # 当前已经进入动作的通道
 
 
 class ChannelDetector():
@@ -40,7 +40,9 @@ class ChannelDetector():
         self.in_action = False
         self.baseline = None
         self.max_action_val = 0
+        self.min_stable_val = 0
         self.action_interval = 0
+        self.start_action_val = 0
 
     def push(self, val):
         global network_man, CHANNEL_IN_ACTION
@@ -51,24 +53,31 @@ class ChannelDetector():
             self.cache.pop(0)
         self.cache.append(val)
         self.action_interval += 1
-        if not self.in_action and (self.baseline is not None) and (val > self.baseline*ACTION_START_THRESHOLD) \
-                and self.action_interval > ACTION_INTERVAL:
+        if(self.baseline is None):
+            return
+        min_start_val = self.baseline + ACTION_START_DVAL
+        if not self.in_action and (val > min_start_val) and self.action_interval > ACTION_INTERVAL \
+                and val > self.min_stable_val + ACTION_START_DVAL:
             # 超出阈值，判断为Action
             self.in_action = True
+            self.start_action_val = val
             if CHANNEL_IN_ACTION is None:
+                # 向服务器发送动作数据（通道id）
                 CHANNEL_IN_ACTION = self.id
+                network_man.send_action(self.id)
         if self.in_action:
             # 记录动作最大值
             self.max_action_val = max(self.max_action_val, val)
-            if(val <  self.baseline + (self.max_action_val - self.baseline) * ACTION_END_THRESHOLD):
-                # 检测下降沿，降低为峰值的一定比率时，Action结束
+            if(val < self.start_action_val + (self.max_action_val - self.start_action_val) * ACTION_END_THRESHOLD):
+                # 下降沿，Action结束
+                self.min_stable_val = val
                 self.in_action = False
                 self.max_action_val = 0
                 self.action_interval = 0
                 if CHANNEL_IN_ACTION == self.id:
-                    # 向服务器发送动作数据（通道id）
-                    network_man.send_action(self.id)
                     CHANNEL_IN_ACTION = None
+        else:
+            self.min_stable_val = min(self.min_stable_val, val)
 
 
 class DetectorThread(Thread):

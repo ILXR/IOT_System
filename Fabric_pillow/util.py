@@ -11,14 +11,14 @@ data_queue = queue.Queue(maxsize=1024/2)  # 解析数据缓存
 network_man = NetworkManager()
 
 # Global flag
-WRITE_TO_FILE = False
+WRITE_TO_FILE = True
 PROGRAM_EXIT = False
 
 # Alogrithm param
 TIMEOUT = 5
 CHANNELS = 5
 CACHE_SIZE = 100
-AVERAGE = 15
+AVERAGE = 4
 
 
 class ThreadStatus(Enum):  # 控制线程运行

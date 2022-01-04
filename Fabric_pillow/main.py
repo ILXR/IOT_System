@@ -6,6 +6,9 @@ from data_process import *
 from action_detector import *
 from net_process import test_internet
 
+SERIAL_NAME = '/dev/ttyACM0'
+SERIAL_SPEED = 57600
+
 
 def wait():
     while not util.PROGRAM_EXIT:
@@ -17,7 +20,7 @@ def wait():
 
 
 def main():
-    ser = serial.Serial('/dev/ttyACM0', 57600)
+    ser = serial.Serial(SERIAL_NAME, SERIAL_SPEED)
     if not test_internet():
         print("网络未连通，程序退出")
         return

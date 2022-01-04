@@ -91,6 +91,7 @@ class ProcessThread(Thread):
                         average = self.process_values(result)
                         if(len(average) > 0):
                             data_queue.put(average)
+                            # print(str(average)[1:-1])
                             if WRITE_TO_FILE:
                                 w.write(str(average)[1:-1]+"\n")
                                 w.flush()
