@@ -9,7 +9,9 @@ app = Flask(__name__)
 
 # Alarm
 ALARM_INTERVAL = 2000  # 连续按压动作之间的最大间隔
-ALARM_TIME = 3  # 连续按压动作的触发次数
+ALARM_TIME = 3  # 连续按压动作次数
+SWITCH_INTERVAL = 2000
+SWITCH_TIME = 2
 
 # NetWork
 SUCCESS_CODE = 200
@@ -57,14 +59,23 @@ def process_order(action, id, time):
     if action in util.device_info:
         info = util.device_info[action]
         type, mac, socket = info['type'], info['mac'], info['socket']
+        count, code = 1, SUCCESS_ACTION
         if(type == "Switch"):
-            # 开关类型直接切换状态
-            return send_action(socket, action)
+            # 开关类型，持续 SWITCH_TIME 次动作，每两次间隔 SWITCH_INTERVAL 内时，切换状态
+            # 1->2 (Open) 3->4 (Close) 5 ---(time>ALARM_INTERVAL)---> 6 (超时，重新计数)
+            if(action in util.pre_action):
+                pre = util.pre_action[action]
+                pre_t, pre_c = pre['time'], pre['count']
+                count = pre_c+1 if(round((time-pre_t)*1000)
+                                   <= SWITCH_INTERVAL) else 1
+                if(count >= SWITCH_TIME):
+                    count = 0
+                    print("switch change status")
+                    code = send_action(socket, action)
         elif(type == "Alarm"):
             # 警报类型，持续 ALARM_TIME 次动作，每两次间隔 ALARM_INTERVAL 内时，开启警报
             # 1->2->...->ALARM_TIME (开启警报) ->ALARM_TIME+1->ALARM_TIME+2 (警报持续)
             # 1->2->...->n ---(time>ALARM_INTERVAL)---> 1 (超时，重新计数)
-            count, code = 1, SUCCESS_ACTION
             if(action in util.pre_action):
                 pre = util.pre_action[action]
                 pre_t, pre_c = pre['time'], pre['count']
@@ -73,12 +84,12 @@ def process_order(action, id, time):
                 if(count >= ALARM_TIME):
                     print("alarm start")
                     code = send_action(socket, action)
-            util.pre_action[action] = {
-                'time': time,
-                'count': count
-            }
-            print(util.pre_action[action])
-            return code
+        util.pre_action[action] = {
+            'time': time,
+            'count': count
+        }
+        print(util.pre_action[action])
+        return code
 
 
 def send_action(socket, action):
